@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { MapPin, Search, X, List } from "lucide-react"
+import { MapPin, Search, X, List, Map as MapIcon } from "lucide-react"
 
 const customIcon = L.icon({
   iconUrl: 'https://cdn0.iconfinder.com/data/icons/small-n-flat/24/678111-map-marker-512.png',
@@ -30,7 +30,8 @@ export default function Component() {
   const [newPin, setNewPin] = useState<Pin | null>(null)
   const [mapRef, setMapRef] = useState<L.Map | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('map')
+  const [isMobile, setIsMobile] = useState(false)
 
   const bangaloreCoords: [number, number] = [12.9716, 77.5946]
 
@@ -39,6 +40,14 @@ export default function Component() {
     if (storedPins) {
       setPins(JSON.parse(storedPins))
     }
+
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
   useEffect(() => {
@@ -88,20 +97,22 @@ export default function Component() {
         duration: 1.5,
       })
     }
-  }, [mapRef])
-  
+    if (isMobile) {
+      setViewMode('map')
+    }
+  }, [mapRef, isMobile])
+
   const handlePinDelete = useCallback((id: string) => {
     setPins(prevPins => {
-        const updatedPins = prevPins.filter(pin => pin.id !== id);
-        if (updatedPins.length === 0) {
-            localStorage.removeItem('mapPins');
-        } else {
-            localStorage.setItem('mapPins', JSON.stringify(updatedPins));
-        }
-        return updatedPins;
-    });
-}, []);
-
+      const updatedPins = prevPins.filter(pin => pin.id !== id)
+      if (updatedPins.length === 0) {
+        localStorage.removeItem('mapPins')
+      } else {
+        localStorage.setItem('mapPins', JSON.stringify(updatedPins))
+      }
+      return updatedPins
+    })
+  }, [])
 
   const filteredPins = useMemo(() => 
     pins.filter(pin => 
@@ -112,7 +123,7 @@ export default function Component() {
   )
 
   const renderPinCard = (pin: Pin) => (
-    <Card key={pin.id} className={`mb-4 hover:shadow-md transition-shadow duration-200 ${viewMode === 'grid' ? 'w-full sm:w-1/2 md:w-1/3 lg:w-1/2 p-2' : ''}`}>
+    <Card key={pin.id} className="mb-4 hover:shadow-md transition-shadow duration-200">
       <CardContent className="p-4">
         <div className="flex items-start justify-between">
           <div className="flex items-start flex-1 cursor-pointer" onClick={() => handlePinClick(pin)}>
@@ -136,12 +147,24 @@ export default function Component() {
   )
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Card className="w-1/3 m-4 overflow-hidden shadow-lg">
-        <CardContent className="p-6">
-          <h2 className="text-3xl font-bold mb-6 text-gray-800">Saved Pins</h2>
-          <div className="flex justify-between items-center mb-6">
-            <div className="relative flex-grow mr-4">
+    <div className="flex flex-col md:flex-row h-screen bg-gray-100">
+      <Card className={`${isMobile ? (viewMode === 'list' ? 'h-full' : 'h-1/4') : 'w-1/3'} md:m-4 overflow-hidden shadow-lg`}>
+        <CardContent className="p-4 md:p-6 h-full flex flex-col">
+          <div className="flex justify-between items-center mb-4 md:mb-6">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-800">Saved Pins</h2>
+            {isMobile && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+                className="md:hidden"
+              >
+                {viewMode === 'list' ? <MapIcon size={20} /> : <List size={20} />}
+              </Button>
+            )}
+          </div>
+          <div className="flex justify-between items-center mb-4 md:mb-6">
+            <div className="relative flex-grow mr-2 md:mr-4">
               <Input
                 type="text"
                 placeholder="Search pins..."
@@ -151,25 +174,15 @@ export default function Component() {
               />
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             </div>
-            <div className="flex">
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'outline'}
-                size="icon"
-                onClick={() => setViewMode('list')}
-                className="mr-2"
-              >
-                <List size={20} />
-              </Button>
-            </div>
           </div>
-          <ScrollArea className="h-[calc(100vh-240px)]">
-            <div className={`${viewMode === 'grid' ? 'flex flex-wrap -mx-2' : ''}`}>
+          <ScrollArea className="flex-grow">
+            <div className="space-y-4">
               {filteredPins.map(renderPinCard)}
             </div>
           </ScrollArea>
         </CardContent>
       </Card>
-      <div className="flex-1 relative">
+      <div className={`${isMobile ? (viewMode === 'map' ? 'h-3/4' : 'h-0') : 'flex-1'} relative`}>
         <MapContainer center={bangaloreCoords} zoom={11} style={{ height: '100%', width: '100%' }} ref={setMapRef}>
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
